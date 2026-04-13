@@ -48,7 +48,7 @@ function App() {
   }, []);
 
   const fetchCases = () => {
-    fetch("http://127.0.0.1:8000/pa-cases")
+    fetch("https://pa-genie-backend.onrender.com/pa-cases")
       .then(res => res.json())
       .then(setCases);
   };
@@ -60,7 +60,7 @@ function App() {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    fetch("http://127.0.0.1:8000/pa-cases", {
+    fetch("https://pa-genie-backend.onrender.com/pa-cases", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -78,7 +78,7 @@ function App() {
     if (authForm.auth_start_date) payload.auth_start_date = authForm.auth_start_date;
     if (authForm.auth_end_date) payload.auth_end_date = authForm.auth_end_date;
 
-    fetch(`http://127.0.0.1:8000/pa-cases/${selectedCase.id}/auth`, {
+    fetch(`https://pa-genie-backend.onrender.com/pa-cases/${selectedCase.id}/auth`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
