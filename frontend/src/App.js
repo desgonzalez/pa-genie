@@ -1,55 +1,42 @@
 import React, { useState, useEffect } from "react";
 
-function App() {
+const API = "https://pa-genie-backend.onrender.com";
+
+export default function App() {
   const [user, setUser] = useState(null);
-
-  // 🔐 LOGIN FORM
-  const [loginForm, setLoginForm] = useState({
-    email: "",
-    password: ""
-  });
-
-  // MAIN APP STATE
   const [cases, setCases] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
 
   const [form, setForm] = useState({
     patient_name: "",
-    payer_name: "",
-    cpt_codes: "",
-    icd10_codes: ""
+    payer_name: ""
   });
 
   const [authForm, setAuthForm] = useState({
     auth_number: "",
-    submission_status: "PENDING",
-    auth_start_date: "",
-    auth_end_date: ""
+    submission_status: "PENDING"
   });
 
-  // 🔐 LOGIN HANDLER
+  // LOGIN
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+
   const handleLogin = (e) => {
     e.preventDefault();
-
     if (loginForm.email && loginForm.password) {
       setUser(loginForm.email);
       localStorage.setItem("user", loginForm.email);
     }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem("user");
-  };
-
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) setUser(savedUser);
+    const saved = localStorage.getItem("user");
+    if (saved) setUser(saved);
   }, []);
 
+  // FETCH CASES
   const fetchCases = () => {
-    fetch("https://pa-genie-backend.onrender.com/pa-cases")
-      .then(res => res.json())
+    fetch(`${API}/pa-cases`)
+      .then((res) => res.json())
       .then(setCases);
   };
 
@@ -57,10 +44,11 @@ function App() {
     if (user) fetchCases();
   }, [user]);
 
+  // CREATE CASE
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    fetch("https://pa-genie-backend.onrender.com/pa-cases", {
+    fetch(`${API}/pa-cases`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -71,80 +59,111 @@ function App() {
     }).then(fetchCases);
   };
 
+  // UPDATE AUTH
   const handleAuthUpdate = () => {
-    const payload = {};
-    if (authForm.auth_number) payload.auth_number = authForm.auth_number;
-    if (authForm.submission_status) payload.submission_status = authForm.submission_status;
-    if (authForm.auth_start_date) payload.auth_start_date = authForm.auth_start_date;
-    if (authForm.auth_end_date) payload.auth_end_date = authForm.auth_end_date;
-
-    fetch(`https://pa-genie-backend.onrender.com/pa-cases/${selectedCase.id}/auth`, {
+    fetch(`${API}/pa-cases/${selectedCase.id}/auth`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(authForm)
     }).then(() => {
       fetchCases();
-      setSelectedCase({ ...selectedCase, ...payload });
+      setSelectedCase(null);
     });
   };
 
-  // 🔐 LOGIN SCREEN
+  // STATUS COLORS
+  const getStatusColor = (status) => {
+    if (status === "APPROVED") return "#22c55e";
+    if (status === "DENIED") return "#ef4444";
+    return "#facc15";
+  };
+
+  // LOGIN SCREEN
   if (!user) {
     return (
-      <div style={{ display:"flex", height:"100vh", alignItems:"center", justifyContent:"center" }}>
-        <form onSubmit={handleLogin} style={{ padding:30, background:"white", borderRadius:10 }}>
-          <h2>PA Genie Login</h2>
-          <input placeholder="Email"
-            onChange={e=>setLoginForm({...loginForm,email:e.target.value})}/>
-          <input type="password" placeholder="Password"
-            onChange={e=>setLoginForm({...loginForm,password:e.target.value})}/>
-          <button type="submit">Login</button>
+      <div style={styles.center}>
+        <form onSubmit={handleLogin} style={styles.card}>
+          <h2>PA Genie</h2>
+          <input placeholder="Email" onChange={e=>setLoginForm({...loginForm,email:e.target.value})}/>
+          <input type="password" placeholder="Password" onChange={e=>setLoginForm({...loginForm,password:e.target.value})}/>
+          <button>Login</button>
         </form>
       </div>
     );
   }
 
-  // 🏥 MAIN APP
   return (
-    <div style={{ padding:30 }}>
-      <h1>PA Genie</h1>
-      <button onClick={handleLogout}>Logout</button>
+    <div style={styles.layout}>
+      
+      {/* SIDEBAR */}
+      <div style={styles.sidebar}>
+        <h2>PA Genie</h2>
+        <p>Dashboard</p>
+      </div>
 
-      {/* CREATE */}
-      <form onSubmit={handleSubmit}>
-        <input placeholder="Patient"
-          onChange={e=>setForm({...form,patient_name:e.target.value})}/>
-        <input placeholder="Insurance"
-          onChange={e=>setForm({...form,payer_name:e.target.value})}/>
-        <button>Create</button>
-      </form>
-
-      {/* LIST */}
-      {cases.map(c => (
-        <div key={c.id} onClick={()=>setSelectedCase(c)} style={{ cursor:"pointer" }}>
-          {c.patient_name} — {c.submission_status}
+      {/* MAIN */}
+      <div style={styles.main}>
+        
+        {/* CREATE CARD */}
+        <div style={styles.card}>
+          <h3>Create Case</h3>
+          <form onSubmit={handleSubmit}>
+            <input placeholder="Patient" onChange={e=>setForm({...form,patient_name:e.target.value})}/>
+            <input placeholder="Insurance" onChange={e=>setForm({...form,payer_name:e.target.value})}/>
+            <button>Create</button>
+          </form>
         </div>
-      ))}
 
-      {/* DETAIL */}
-      {selectedCase && (
-        <div style={{ marginTop:20 }}>
-          <h2>{selectedCase.patient_name}</h2>
-
-          <input placeholder="Auth Number"
-            onChange={e=>setAuthForm({...authForm,auth_number:e.target.value})}/>
-
-          <select onChange={e=>setAuthForm({...authForm,submission_status:e.target.value})}>
-            <option>PENDING</option>
-            <option>APPROVED</option>
-            <option>DENIED</option>
-          </select>
-
-          <button onClick={handleAuthUpdate}>Save</button>
+        {/* CASE LIST */}
+        <div style={styles.card}>
+          <h3>Cases</h3>
+          {cases.map(c => (
+            <div 
+              key={c.id} 
+              onClick={()=>setSelectedCase(c)}
+              style={{
+                padding:10,
+                marginBottom:8,
+                borderRadius:8,
+                background:"#f1f5f9",
+                cursor:"pointer"
+              }}
+            >
+              <strong>{c.patient_name}</strong>
+              <div style={{ color:getStatusColor(c.submission_status) }}>
+                {c.submission_status}
+              </div>
+            </div>
+          ))}
         </div>
-      )}
+
+        {/* DETAIL */}
+        {selectedCase && (
+          <div style={styles.card}>
+            <h3>{selectedCase.patient_name}</h3>
+
+            <input placeholder="Auth #" onChange={e=>setAuthForm({...authForm,auth_number:e.target.value})}/>
+
+            <select onChange={e=>setAuthForm({...authForm,submission_status:e.target.value})}>
+              <option>PENDING</option>
+              <option>APPROVED</option>
+              <option>DENIED</option>
+            </select>
+
+            <button onClick={handleAuthUpdate}>Save</button>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
 
-export default App;
+// STYLES
+const styles = {
+  layout: { display:"flex", height:"100vh", fontFamily:"sans-serif" },
+  sidebar: { width:200, background:"#0f172a", color:"white", padding:20 },
+  main: { flex:1, padding:20, background:"#f8fafc" },
+  card: { background:"white", padding:20, borderRadius:10, marginBottom:20 },
+  center: { display:"flex", height:"100vh", alignItems:"center", justifyContent:"center" }
+};
