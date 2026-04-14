@@ -1,8 +1,4 @@
-# backend/main.py
-
 from typing import List, Optional
-from datetime import date  
-
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
@@ -26,9 +22,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# --------------------------------
-# CORS — allow from anywhere for now
-# --------------------------------
+# ✅ CORS (IMPORTANT FOR FRONTEND)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,98 +31,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.on_event("startup")
 def on_startup():
-    """
-    Ensure all tables exist before requests arrive.
-    """
     create_db_and_tables()
 
-
-@app.get("/")
-def health_check():
-    return {"status": "ok", "message": "PA Genie API is running"}
-
-
-from typing import Optional
-
-@app.get("/pa-cases", response_model=List[PACaseRead])
-
-
-@app.get("/pa-cases", response_model=List[PACaseRead])
-def list_pa_cases(
-    status: Optional[PAStatus] = None,
-    submission_status: Optional[SubmissionStatus] = None,
-    session: Session = Depends(get_session)
-):
-    query = select(PACase)
-
-    if status:
-        query = query.where(PACase.status == status)
-
-    if submission_status:
-        query = query.where(PACase.submission_status == submission_status)
-
-    cases = session.exec(query).all()
-
-    return [db_to_api_case(c) for c in cases]
-    query = select(PACase)
-
-    if status:
-        query = query.where(PACase.status == status)
-
-    cases = session.exec(query).all()
-
-    return [db_to_api_case(c) for c in cases]
-
-@app.get("/pa-cases/follow-up", response_model=List[PACaseRead])
-def get_follow_up_cases(session: Session = Depends(get_session)):
-    today = date.today()
-
-    query = select(PACase).where(
-        PACase.follow_up_date != None,
-        PACase.follow_up_date <= today
-    )
-
-    cases = session.exec(query).all()
-
-    return [db_to_api_case(c) for c in cases]
-
-
-@app.get("/pa-cases/{case_id}", response_model=PACaseRead)
-def get_pa_case(case_id: int, session: Session = Depends(get_session)):
-    case = session.get(PACase, case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="PA case not found")
-    return db_to_api_case(case)
-
-from datetime import date
-
-
-
-
+# 🏥 CREATE CASE
 @app.post("/pa-cases", response_model=PACaseRead)
-def create_pa_case(payload: PACaseCreate, session: Session = Depends(get_session)):
-    # 1) Call AI to summarize the chart note
-    try:
-        ai_data = summarize_for_prior_auth(payload.chart_note_text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI error: {e}")
+def create_case(case: PACaseCreate, session: Session = Depends(get_session)):
+    db_case = PACase.from_orm(case)
 
-    # convert AI output into our summary model
-    summary_text = str(ai_data)
-
-    # 2) Build database object
-    db_case = PACase(
-        patient_name=payload.patient_name,
-        payer_name=payload.payer_name,
-        cpt_codes=pack_codes(payload.cpt_codes),
-        icd10_codes=pack_codes(payload.icd10_codes),
-        visit_type=payload.visit_type,
-        status=PAStatus.REVIEW,
-        summary_text=summary_text,
-    )
+    summary = summarize_for_prior_auth(case.chart_note_text)
+    db_case.summary_text = summary
+    db_case.status = PAStatus.REVIEW
 
     session.add(db_case)
     session.commit()
@@ -136,36 +50,21 @@ def create_pa_case(payload: PACaseCreate, session: Session = Depends(get_session
 
     return db_to_api_case(db_case)
 
+# 📄 GET CASES
+@app.get("/pa-cases", response_model=List[PACaseRead])
+def get_cases(session: Session = Depends(get_session)):
+    cases = session.exec(select(PACase)).all()
+    return [db_to_api_case(c) for c in cases]
 
-@app.patch("/pa-cases/{case_id}/status", response_model=PACaseRead)
-def update_pa_case_status(
-    case_id: int, status: PAStatus, session: Session = Depends(get_session)
-):
-    case = session.get(PACase, case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="PA case not found")
-
-    case.status = status
-    session.add(case)
-    session.commit()
-    session.refresh(case)
-
-    return db_to_api_case(case)
+# 🔄 UPDATE AUTH
 @app.patch("/pa-cases/{case_id}/auth", response_model=PACaseRead)
-def update_pa_case_auth(
-    case_id: int,
-    payload: PACaseAuthUpdate,
-    session: Session = Depends(get_session),
-):
+def update_auth(case_id: int, update: PACaseAuthUpdate, session: Session = Depends(get_session)):
     case = session.get(PACase, case_id)
-
     if not case:
-        raise HTTPException(status_code=404, detail="PA case not found")
+        raise HTTPException(status_code=404, detail="Case not found")
 
-    update_data = payload.model_dump(exclude_unset=True)
-
-    for field, value in update_data.items():
-        setattr(case, field, value)
+    for key, value in update.dict(exclude_unset=True).items():
+        setattr(case, key, value)
 
     session.add(case)
     session.commit()
@@ -173,46 +72,47 @@ def update_pa_case_auth(
 
     return db_to_api_case(case)
 
-@app.get("/dashboard/metrics")
-def get_dashboard_metrics(session: Session = Depends(get_session)):
-    today = date.today()
-
-    all_cases = session.exec(select(PACase)).all()
-
-    return {
-        "total_cases": len(all_cases),
-        "new_cases": len([c for c in all_cases if c.status == PAStatus.NEW]),
-        "in_review": len([c for c in all_cases if c.status == PAStatus.REVIEW]),
-        "pending_payer": len([c for c in all_cases if c.status == PAStatus.PENDING_PAYER]),
-        "approved": len([c for c in all_cases if c.submission_status == SubmissionStatus.APPROVED]),
-        "denied": len([c for c in all_cases if c.submission_status == SubmissionStatus.DENIED]),
-        "follow_ups_due": len([
-            c for c in all_cases
-            if c.follow_up_date and c.follow_up_date <= today
-        ])
-    }
-@app.post("/ai-call/{case_id}")
+# 🤖 REAL AI CALL (SMART VERSION)
+@app.post("/ai-call/{case_id}", response_model=PACaseRead)
 def ai_call(case_id: int, session: Session = Depends(get_session)):
     case = session.get(PACase, case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
     prompt = f"""
-    Simulate a prior authorization call.
+    You are an experienced insurance prior authorization specialist making a phone call.
 
     Patient: {case.patient_name}
     Insurance: {case.payer_name}
     CPT Codes: {case.cpt_codes}
     ICD10 Codes: {case.icd10_codes}
 
-    Return:
-    - Rep name
-    - If auth required
-    - Auth number
-    - Units/visits
-    - Valid dates
-    - Reference number
-    - Short call summary
+    Simulate a REAL insurance call and return a structured response:
+
+    1. Start with:
+       📞 Called {case.payer_name}
+       Rep name with last initial
+       State that the call is recorded
+
+    2. Determine if authorization is required based on CPT codes
+
+    3. If authorization is NOT required:
+       - Clearly state "No authorization required"
+       - Provide a realistic reference number
+       - Explain WHY based on CPT/ICD
+
+    4. If authorization IS required:
+       - Provide auth number
+       - Units/visits approved
+       - Valid date range
+       - Reference number
+       - Explain reasoning
+
+    5. If unclear or complex:
+       - State "Nurse review required"
+       - Explain why
+
+    Make it realistic, professional, and clinically accurate.
     """
 
     ai_response = summarize_for_prior_auth(prompt)
@@ -224,4 +124,4 @@ def ai_call(case_id: int, session: Session = Depends(get_session)):
     session.commit()
     session.refresh(case)
 
-    return case
+    return db_to_api_case(case)
