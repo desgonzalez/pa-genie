@@ -191,4 +191,37 @@ def get_dashboard_metrics(session: Session = Depends(get_session)):
             if c.follow_up_date and c.follow_up_date <= today
         ])
     }
+@app.post("/ai-call/{case_id}")
+def ai_call(case_id: int, session: Session = Depends(get_session)):
+    case = session.get(PACase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
 
+    prompt = f"""
+    Simulate a prior authorization call.
+
+    Patient: {case.patient_name}
+    Insurance: {case.payer_name}
+    CPT Codes: {case.cpt_codes}
+    ICD10 Codes: {case.icd10_codes}
+
+    Return:
+    - Rep name
+    - If auth required
+    - Auth number
+    - Units/visits
+    - Valid dates
+    - Reference number
+    - Short call summary
+    """
+
+    ai_response = summarize_for_prior_auth(prompt)
+
+    case.call_notes = ai_response
+    case.submission_status = "APPROVED"
+
+    session.add(case)
+    session.commit()
+    session.refresh(case)
+
+    return case
