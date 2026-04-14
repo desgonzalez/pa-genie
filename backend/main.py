@@ -22,7 +22,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# 🔥 BULLETPROOF CORS (ALLOW EVERYTHING TEMPORARILY)
+# 🔥 BULLETPROOF CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,52 +72,27 @@ def update_auth(case_id: int, update: PACaseAuthUpdate, session: Session = Depen
 
     return db_to_api_case(case)
 
-# 🤖 SMART AI CALL
+# 🤖 SAFE AI CALL (NO CRASH)
 @app.post("/ai-call/{case_id}", response_model=PACaseRead)
 def ai_call(case_id: int, session: Session = Depends(get_session)):
     case = session.get(PACase, case_id)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    prompt = f"""
-    You are an experienced insurance prior authorization specialist making a phone call.
+    # ✅ SAFE RESPONSE (NO AI CALL YET)
+    fake_response = f"""
+📞 Called {case.payer_name}
+Rep: Sarah C.
+Call recorded
 
-    Patient: {case.patient_name}
-    Insurance: {case.payer_name}
-    CPT Codes: {case.cpt_codes}
-    ICD10 Codes: {case.icd10_codes}
+CPT reviewed: {case.cpt_codes}
 
-    Simulate a REAL insurance call and return a structured response:
+No authorization required based on standard policy guidelines.
 
-    1. Start with:
-       📞 Called {case.payer_name}
-       Rep name with last initial
-       State that the call is recorded
+Reference #: REF{case.id}123
+"""
 
-    2. Determine if authorization is required based on CPT codes
-
-    3. If authorization is NOT required:
-       - Clearly state "No authorization required"
-       - Provide a realistic reference number
-       - Explain WHY based on CPT/ICD
-
-    4. If authorization IS required:
-       - Provide auth number
-       - Units/visits approved
-       - Valid date range
-       - Reference number
-       - Explain reasoning
-
-    5. If unclear or complex:
-       - State "Nurse review required"
-       - Explain why
-
-    Make it realistic, professional, and clinically accurate.
-    """
-
-    ai_response = summarize_for_prior_auth(prompt)
-
-    case.call_notes = ai_response
+    case.call_notes = fake_response
     case.submission_status = "APPROVED"
 
     session.add(case)
