@@ -10,12 +10,21 @@ export default function App() {
 
   const [form, setForm] = useState({
     patient_name: "",
-    payer_name: ""
+    payer_name: "",
+    cpt_codes: "",
+    icd10_codes: ""
   });
 
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [loginForm, setLoginForm] = useState({
+    email: "",
+    password: ""
+  });
 
-  // 🔐 LOGIN
+  useEffect(() => {
+    const saved = localStorage.getItem("user");
+    if (saved) setUser(saved);
+  }, []);
+
   const handleLogin = (e) => {
     e.preventDefault();
     if (loginForm.email && loginForm.password) {
@@ -24,15 +33,9 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    const saved = localStorage.getItem("user");
-    if (saved) setUser(saved);
-  }, []);
-
-  // 📡 FETCH CASES
   const fetchCases = () => {
     fetch(`${API}/pa-cases`)
-      .then(res => res.json())
+      .then((res) => res.json())
       .then(setCases);
   };
 
@@ -40,7 +43,6 @@ export default function App() {
     if (user) fetchCases();
   }, [user]);
 
-  // ➕ CREATE CASE
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -52,47 +54,41 @@ export default function App() {
         visit_type: "IN_OFFICE",
         chart_note_text: "Created from UI"
       })
-    }).then(fetchCases);
+    }).then(() => {
+      fetchCases();
+      setForm({
+        patient_name: "",
+        payer_name: "",
+        cpt_codes: "",
+        icd10_codes: ""
+      });
+    });
   };
 
-  // 🤖 REAL AI CALL
   const runAISimulation = () => {
     fetch(`${API}/ai-call/${selectedCase.id}`, {
       method: "POST"
     })
-      .then(res => res.json())
+      .then((res) => res.json())
       .then((data) => {
         setCallLog(data.call_notes);
         fetchCases();
-      })
-      .catch(err => console.error(err));
+      });
   };
 
-  // 🎨 STATUS COLORS
-  const getStatusColor = (status) => {
-    if (status === "APPROVED") return "#22c55e";
-    if (status === "DENIED") return "#ef4444";
-    return "#facc15";
-  };
-
-  // 🔐 LOGIN SCREEN
   if (!user) {
     return (
       <div style={styles.center}>
         <form onSubmit={handleLogin} style={styles.card}>
-          <h2>PA Genie</h2>
+          <h2>PA Genie Login</h2>
           <input
             placeholder="Email"
-            onChange={(e) =>
-              setLoginForm({ ...loginForm, email: e.target.value })
-            }
+            onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
           />
           <input
             type="password"
             placeholder="Password"
-            onChange={(e) =>
-              setLoginForm({ ...loginForm, password: e.target.value })
-            }
+            onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
           />
           <button>Login</button>
         </form>
@@ -102,64 +98,81 @@ export default function App() {
 
   return (
     <div style={styles.layout}>
-      {/* SIDEBAR */}
       <div style={styles.sidebar}>
         <h2>PA Genie</h2>
         <p>Dashboard</p>
       </div>
 
-      {/* MAIN */}
       <div style={styles.main}>
-        {/* CREATE */}
         <div style={styles.card}>
           <h3>Create Case</h3>
           <form onSubmit={handleSubmit}>
             <input
-              placeholder="Patient"
-              onChange={(e) =>
-                setForm({ ...form, patient_name: e.target.value })
-              }
+              placeholder="Patient Name"
+              value={form.patient_name}
+              onChange={(e) => setForm({ ...form, patient_name: e.target.value })}
             />
             <input
               placeholder="Insurance"
-              onChange={(e) =>
-                setForm({ ...form, payer_name: e.target.value })
-              }
+              value={form.payer_name}
+              onChange={(e) => setForm({ ...form, payer_name: e.target.value })}
+            />
+            <input
+              placeholder="CPT Codes"
+              value={form.cpt_codes}
+              onChange={(e) => setForm({ ...form, cpt_codes: e.target.value })}
+            />
+            <input
+              placeholder="ICD10 Codes"
+              value={form.icd10_codes}
+              onChange={(e) => setForm({ ...form, icd10_codes: e.target.value })}
             />
             <button>Create</button>
           </form>
         </div>
 
-        {/* CASE LIST */}
         <div style={styles.card}>
           <h3>Cases</h3>
           {cases.map((c) => (
             <div
               key={c.id}
-              onClick={() => setSelectedCase(c)}
               style={styles.caseItem}
+              onClick={() => {
+                setSelectedCase(c);
+                setCallLog(c.call_notes || "");
+              }}
             >
               <strong>{c.patient_name}</strong>
-              <div style={{ color: getStatusColor(c.submission_status) }}>
-                {c.submission_status}
-              </div>
+              <div>{c.payer_name}</div>
             </div>
           ))}
         </div>
 
-        {/* DETAIL */}
         {selectedCase && (
           <div style={styles.card}>
-            <h3>{selectedCase.patient_name}</h3>
-
-            <button onClick={runAISimulation}>
-              🤖 Run AI Call
-            </button>
+            <h2>{selectedCase.patient_name}</h2>
+            <button onClick={runAISimulation}>🤖 Run AI Call</button>
 
             {callLog && (
-              <pre style={styles.log}>
-                {callLog}
-              </pre>
+              <div style={styles.timelineCard}>
+                <h3>Case Timeline</h3>
+
+                <div style={styles.timelineItem}>
+                  <div style={styles.timelineDot}></div>
+                  <div>
+                    <strong>Case Created</strong>
+                    <div>{selectedCase.patient_name}</div>
+                  </div>
+                </div>
+
+                <div style={styles.timelineItem}>
+                  <div style={styles.timelineDot}></div>
+                  <div>
+                    <strong>AI Insurance Call Completed</strong>
+                    <pre style={styles.log}>{callLog}</pre>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -168,30 +181,70 @@ export default function App() {
   );
 }
 
-// 🎨 STYLES
 const styles = {
-  layout: { display: "flex", height: "100vh", fontFamily: "sans-serif" },
-  sidebar: { width: 200, background: "#0f172a", color: "white", padding: 20 },
-  main: { flex: 1, padding: 20, background: "#f8fafc" },
-  card: { background: "white", padding: 20, borderRadius: 10, marginBottom: 20 },
+  layout: {
+    display: "flex",
+    minHeight: "100vh",
+    background: "#f8fafc"
+  },
+  sidebar: {
+    width: 220,
+    background: "#0f172a",
+    color: "white",
+    padding: 20
+  },
+  main: {
+    flex: 1,
+    padding: 24
+  },
+  card: {
+    background: "white",
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+  },
   caseItem: {
-    padding: 10,
-    marginBottom: 8,
-    background: "#f1f5f9",
+    padding: 12,
+    border: "1px solid #e2e8f0",
     borderRadius: 8,
+    marginBottom: 10,
     cursor: "pointer"
   },
   center: {
     display: "flex",
-    height: "100vh",
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    height: "100vh",
+    background: "#f1f5f9"
+  },
+  timelineCard: {
+    marginTop: 20,
+    background: "white",
+    borderRadius: 12,
+    padding: 20,
+    border: "1px solid #e2e8f0"
+  },
+  timelineItem: {
+    display: "flex",
+    gap: 12,
+    marginBottom: 20,
+    alignItems: "flex-start"
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    background: "#2563eb",
+    borderRadius: "50%",
+    marginTop: 6
   },
   log: {
-    marginTop: 15,
+    marginTop: 10,
     background: "#0f172a",
-    color: "lime",
-    padding: 10,
-    whiteSpace: "pre-wrap"
+    color: "#86efac",
+    padding: 12,
+    borderRadius: 8,
+    whiteSpace: "pre-wrap",
+    fontSize: 14
   }
 };
