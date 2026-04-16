@@ -1,3 +1,24 @@
+import React, { useState, useEffect } from "react";
+
+const formatCallNote = (note) => {
+  return note
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line, idx) => (
+      <div key={idx} style={{ marginBottom: 10 }}>
+        {line.startsWith("🕒") ? (
+          <div style={{ fontWeight: 700, color: "#60a5fa" }}>{line}</div>
+        ) : line.toLowerCase().includes("reference") || line.toLowerCase().includes("auth #") ? (
+          <div style={{ fontWeight: 700, color: "#facc15" }}>{line}</div>
+        ) : (
+          <div>{line}</div>
+        )}
+      </div>
+    ));
+};
+
+const API = "https://pa-genie-backend.onrender.com";
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [cases, setCases] = useState([]);
@@ -71,7 +92,9 @@ export default function App() {
         const note = data.call_notes || "";
 
         const authMatch = note.match(/Auth(?:orization)? #?:?\s*([A-Z0-9-]+)/i);
-        const refMatch = note.match(/Reference #?:?\s*([A-Z0-9-]+)/i);
+        const refMatch = note.match(
+          /(?:Reference #?:?|reference number(?: for this inquiry)?[: ]?)\s*([A-Z0-9-]+)/i
+        );
         const dateMatch = note.match(/(\d{2}\/\d{2}\/\d{4}).*(\d{2}\/\d{2}\/\d{4})/);
 
         const updatedCase = {
@@ -258,7 +281,7 @@ export default function App() {
                       <div style={styles.timelineDot}></div>
                       <div style={{ flex: 1 }}>
                         <strong>AI Insurance Call</strong>
-                        <pre style={styles.log}>{entry.trim()}</pre>
+                        <div style={styles.log}>{formatCallNote(entry.trim())}</div>
                       </div>
                     </div>
                   ))}
@@ -363,3 +386,5 @@ const styles = {
     fontSize: 14
   }
 };
+
+
