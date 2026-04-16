@@ -91,17 +91,21 @@ export default function App() {
       .then((data) => {
         const note = data.call_notes || "";
 
-        const authMatch = note.match(/Auth(?:orization)? #?:?\s*([A-Z0-9-]+)/i);
-        const refMatch = note.match(
-          /(?:Reference #?:?|reference number(?: for this inquiry)?[: ]?)\s*([A-Z0-9-]+)/i
-        );
+        const authMatch =
+        note.match(/Auth(?:orization)?\s*#?\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
+        note.match(/authorization number\s*[:\-]?\s*([A-Z0-9-]+)/i);
+      
+      const refMatch =
+        note.match(/Reference\s*#\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
+        note.match(/reference number\s*[:\-]?\s*([A-Z0-9-]+)/i);
+
         const dateMatch = note.match(/(\d{2}\/\d{2}\/\d{4}).*(\d{2}\/\d{2}\/\d{4})/);
 
         const updatedCase = {
           ...selectedCase,
           call_notes: note,
-          auth_number: authMatch ? authMatch[1] : selectedCase.auth_number,
-          reference_number: refMatch ? refMatch[1] : selectedCase.reference_number,
+          auth_number: authMatch ? authMatch[1] : "",
+          reference_number: refMatch ? refMatch[1] : "",
           auth_start_date: dateMatch ? dateMatch[1] : selectedCase.auth_start_date,
           auth_end_date: dateMatch ? dateMatch[2] : selectedCase.auth_end_date,
           submission_status: note.toLowerCase().includes("denied")
