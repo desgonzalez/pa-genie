@@ -1,7 +1,3 @@
-import React, { useState, useEffect } from "react";
-
-const API = "https://pa-genie-backend.onrender.com";
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [cases, setCases] = useState([]);
@@ -27,6 +23,7 @@ export default function App() {
 
   const handleLogin = (e) => {
     e.preventDefault();
+
     if (loginForm.email && loginForm.password) {
       setUser(loginForm.email);
       localStorage.setItem("user", loginForm.email);
@@ -71,8 +68,36 @@ export default function App() {
     })
       .then((res) => res.json())
       .then((data) => {
-        setCallLog(data.call_notes);
-        fetchCases();
+        const note = data.call_notes || "";
+
+        const authMatch = note.match(/Auth(?:orization)? #?:?\s*([A-Z0-9-]+)/i);
+        const refMatch = note.match(/Reference #?:?\s*([A-Z0-9-]+)/i);
+        const dateMatch = note.match(/(\d{2}\/\d{2}\/\d{4}).*(\d{2}\/\d{2}\/\d{4})/);
+
+        const updatedCase = {
+          ...selectedCase,
+          call_notes: note,
+          auth_number: authMatch ? authMatch[1] : selectedCase.auth_number,
+          reference_number: refMatch ? refMatch[1] : selectedCase.reference_number,
+          auth_start_date: dateMatch ? dateMatch[1] : selectedCase.auth_start_date,
+          auth_end_date: dateMatch ? dateMatch[2] : selectedCase.auth_end_date,
+          submission_status: note.toLowerCase().includes("denied")
+            ? "DENIED"
+            : note.toLowerCase().includes("not required")
+            ? "NO AUTH NEEDED"
+            : "APPROVED"
+        };
+
+        setSelectedCase(updatedCase);
+
+        setCases((prev) =>
+          prev.map((c) => (c.id === updatedCase.id ? updatedCase : c))
+        );
+
+        setCallLog((prev) => {
+          if (!prev) return note;
+          return `${prev}\n\n--------------------\n\n${note}`;
+        });
       });
   };
 
@@ -81,15 +106,22 @@ export default function App() {
       <div style={styles.center}>
         <form onSubmit={handleLogin} style={styles.card}>
           <h2>PA Genie Login</h2>
+
           <input
             placeholder="Email"
-            onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+            onChange={(e) =>
+              setLoginForm({ ...loginForm, email: e.target.value })
+            }
           />
+
           <input
             type="password"
             placeholder="Password"
-            onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+            onChange={(e) =>
+              setLoginForm({ ...loginForm, password: e.target.value })
+            }
           />
+
           <button>Login</button>
         </form>
       </div>
@@ -106,33 +138,47 @@ export default function App() {
       <div style={styles.main}>
         <div style={styles.card}>
           <h3>Create Case</h3>
+
           <form onSubmit={handleSubmit}>
             <input
               placeholder="Patient Name"
               value={form.patient_name}
-              onChange={(e) => setForm({ ...form, patient_name: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, patient_name: e.target.value })
+              }
             />
+
             <input
               placeholder="Insurance"
               value={form.payer_name}
-              onChange={(e) => setForm({ ...form, payer_name: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, payer_name: e.target.value })
+              }
             />
+
             <input
               placeholder="CPT Codes"
               value={form.cpt_codes}
-              onChange={(e) => setForm({ ...form, cpt_codes: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, cpt_codes: e.target.value })
+              }
             />
+
             <input
               placeholder="ICD10 Codes"
               value={form.icd10_codes}
-              onChange={(e) => setForm({ ...form, icd10_codes: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, icd10_codes: e.target.value })
+              }
             />
+
             <button>Create</button>
           </form>
         </div>
 
         <div style={styles.card}>
           <h3>Cases</h3>
+
           {cases.map((c) => (
             <div
               key={c.id}
@@ -150,28 +196,72 @@ export default function App() {
 
         {selectedCase && (
           <div style={styles.card}>
-            <h2>{selectedCase.patient_name}</h2>
+            <div style={styles.headerRow}>
+              <div>
+                <h2>{selectedCase.patient_name}</h2>
+                <div>{selectedCase.payer_name}</div>
+              </div>
+
+              <div
+                style={{
+                  ...styles.statusBadge,
+                  background:
+                    selectedCase.submission_status === "APPROVED"
+                      ? "#dcfce7"
+                      : selectedCase.submission_status === "DENIED"
+                      ? "#fee2e2"
+                      : "#fef3c7",
+                  color:
+                    selectedCase.submission_status === "APPROVED"
+                      ? "#166534"
+                      : selectedCase.submission_status === "DENIED"
+                      ? "#991b1b"
+                      : "#92400e"
+                }}
+              >
+                {selectedCase.submission_status || "PENDING"}
+              </div>
+            </div>
+
             <button onClick={runAISimulation}>🤖 Run AI Call</button>
+
+            <div style={styles.infoGrid}>
+              <div style={styles.infoBox}>
+                <strong>Authorization #</strong>
+                <div>{selectedCase.auth_number || "—"}</div>
+              </div>
+
+              <div style={styles.infoBox}>
+                <strong>Reference #</strong>
+                <div>{selectedCase.reference_number || "—"}</div>
+              </div>
+
+              <div style={styles.infoBox}>
+                <strong>Valid Dates</strong>
+                <div>
+                  {selectedCase.auth_start_date
+                    ? `${selectedCase.auth_start_date} - ${selectedCase.auth_end_date}`
+                    : "—"}
+                </div>
+              </div>
+            </div>
 
             {callLog && (
               <div style={styles.timelineCard}>
                 <h3>Case Timeline</h3>
 
-                <div style={styles.timelineItem}>
-                  <div style={styles.timelineDot}></div>
-                  <div>
-                    <strong>Case Created</strong>
-                    <div>{selectedCase.patient_name}</div>
-                  </div>
-                </div>
-
-                <div style={styles.timelineItem}>
-                  <div style={styles.timelineDot}></div>
-                  <div>
-                    <strong>AI Insurance Call Completed</strong>
-                    <pre style={styles.log}>{callLog}</pre>
-                  </div>
-                </div>
+                {callLog
+                  .split("--------------------")
+                  .reverse()
+                  .map((entry, idx) => (
+                    <div key={idx} style={styles.timelineItem}>
+                      <div style={styles.timelineDot}></div>
+                      <div style={{ flex: 1 }}>
+                        <strong>AI Insurance Call</strong>
+                        <pre style={styles.log}>{entry.trim()}</pre>
+                      </div>
+                    </div>
+                  ))}
               </div>
             )}
           </div>
@@ -217,6 +307,31 @@ const styles = {
     justifyContent: "center",
     height: "100vh",
     background: "#f1f5f9"
+  },
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20
+  },
+  statusBadge: {
+    padding: "8px 14px",
+    borderRadius: 999,
+    fontWeight: 700,
+    fontSize: 12
+  },
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 20
+  },
+  infoBox: {
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    padding: 12,
+    background: "#f8fafc"
   },
   timelineCard: {
     marginTop: 20,
