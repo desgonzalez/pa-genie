@@ -1,4 +1,8 @@
-from typing import List, Optional
+Replace your entire `backend/main.py` file with this:
+
+```python
+from typing import List
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
@@ -9,9 +13,7 @@ from models import (
     PACaseRead,
     PACaseAuthUpdate,
     PAStatus,
-    SubmissionStatus,
     db_to_api_case,
-    pack_codes,
 )
 from services.ai_service import summarize_for_prior_auth
 from db import get_session, create_db_and_tables
@@ -22,7 +24,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Allow frontend + local development
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -45,7 +47,6 @@ def create_case(case: PACaseCreate, session: Session = Depends(get_session)):
     try:
         summary = summarize_for_prior_auth(case.chart_note_text)
 
-        # Convert dict response to string if needed
         if isinstance(summary, dict):
             summary = "\n".join(
                 [
@@ -69,20 +70,16 @@ def create_case(case: PACaseCreate, session: Session = Depends(get_session)):
     return db_to_api_case(db_case)
 
 
-# GET ALL CASES
+# GET CASES
 @app.get("/pa-cases", response_model=List[PACaseRead])
 def get_cases(session: Session = Depends(get_session)):
     cases = session.exec(select(PACase)).all()
     return [db_to_api_case(c) for c in cases]
 
 
-# UPDATE AUTH / STATUS
+# UPDATE AUTH
 @app.patch("/pa-cases/{case_id}/auth", response_model=PACaseRead)
-def update_auth(
-    case_id: int,
-    update: PACaseAuthUpdate,
-    session: Session = Depends(get_session),
-):
+def update_auth(case_id: int, update: PACaseAuthUpdate, session: Session = Depends(get_session)):
     case = session.get(PACase, case_id)
 
     if not case:
@@ -98,13 +95,15 @@ def update_auth(
     return db_to_api_case(case)
 
 
-# AI CALL SIMULATION
+# AI CALL WITH TIMESTAMP
 @app.post("/ai-call/{case_id}", response_model=PACaseRead)
 def ai_call(case_id: int, session: Session = Depends(get_session)):
     case = session.get(PACase, case_id)
 
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
+
+    timestamp = datetime.now().strftime("%m/%d/%Y %I:%M %p")
 
     prompt = f"""
 You are an expert insurance prior authorization specialist.
@@ -115,28 +114,20 @@ CPT Codes: {case.cpt_codes}
 ICD10 Codes: {case.icd10_codes}
 
 Simulate a realistic insurance call and include:
-
 - Insurance rep name + last initial
-- Statement that the call is being recorded
-- Determine if prior authorization is required for the CPT codes
-- If no auth is required:
-  - Explain why
-  - Give a reference number
-- If auth is required:
-  - Give auth number
-  - Units / visits approved
-  - Valid date range
-  - Reference number
-- If unclear or additional clinical review is required:
-  - State that nurse review is needed
+- State that the call is being recorded
+- Determine if prior authorization is required
+- Explain why
+- If no auth required: provide a reference number
+- If auth required: auth number, valid dates, units/visits, and reference number
+- If unclear: say nurse review required
 
-Make it realistic, professional, and concise.
+Return only a concise insurance call note.
 """
 
     try:
         ai_response = summarize_for_prior_auth(prompt)
 
-        # summarize_for_prior_auth may return a dict — convert to readable text
         if isinstance(ai_response, dict):
             ai_response = "\n".join(
                 [
@@ -145,20 +136,23 @@ Make it realistic, professional, and concise.
                 ]
             )
 
-        ai_response = str(ai_response)
+        ai_response = f"""
+🕒 AI Call Completed: {timestamp}
+
+{str(ai_response).strip()}
+"""
 
     except Exception as e:
         print("AI CALL ERROR:", e)
 
         ai_response = f"""
+🕒 AI Call Completed: {timestamp}
+
 📞 Called {case.payer_name}
 Rep: Sarah C.
 Call recorded
 
-CPT reviewed: {case.cpt_codes}
-
-Unable to complete AI call — fallback used.
-
+Unable to complete AI analysis.
 Reference #: REF{case.id}999
 """
 
@@ -170,3 +164,15 @@ Reference #: REF{case.id}999
     session.refresh(case)
 
     return db_to_api_case(case)
+```
+
+Then save the file and run:
+
+```bash
+cd ..
+git add .
+git commit -m "fix timestamped ai call output"
+git push
+```
+
+After that, manually redeploy the backend service in Render and then hard refresh your frontend (`Cmd + Shift + R`).
