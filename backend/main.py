@@ -1,6 +1,3 @@
-Replace your entire `backend/main.py` file with this:
-
-```python
 from typing import List
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
@@ -79,7 +76,11 @@ def get_cases(session: Session = Depends(get_session)):
 
 # UPDATE AUTH
 @app.patch("/pa-cases/{case_id}/auth", response_model=PACaseRead)
-def update_auth(case_id: int, update: PACaseAuthUpdate, session: Session = Depends(get_session)):
+def update_auth(
+    case_id: int,
+    update: PACaseAuthUpdate,
+    session: Session = Depends(get_session)
+):
     case = session.get(PACase, case_id)
 
     if not case:
@@ -164,15 +165,3 @@ Reference #: REF{case.id}999
     session.refresh(case)
 
     return db_to_api_case(case)
-```
-
-Then save the file and run:
-
-```bash
-cd ..
-git add .
-git commit -m "fix timestamped ai call output"
-git push
-```
-
-After that, manually redeploy the backend service in Render and then hard refresh your frontend (`Cmd + Shift + R`).
