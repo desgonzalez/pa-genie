@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 
+const API = "https://pa-genie-backend.onrender.com";
+
 const formatCallNote = (note) => {
   return note
     .split("\n")
@@ -8,7 +10,8 @@ const formatCallNote = (note) => {
       <div key={idx} style={{ marginBottom: 10 }}>
         {line.startsWith("🕒") ? (
           <div style={{ fontWeight: 700, color: "#60a5fa" }}>{line}</div>
-        ) : line.toLowerCase().includes("reference") || line.toLowerCase().includes("auth #") ? (
+        ) : line.toLowerCase().includes("reference") ||
+          line.toLowerCase().includes("auth") ? (
           <div style={{ fontWeight: 700, color: "#facc15" }}>{line}</div>
         ) : (
           <div>{line}</div>
@@ -16,8 +19,6 @@ const formatCallNote = (note) => {
       </div>
     ));
 };
-
-const API = "https://pa-genie-backend.onrender.com";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -42,15 +43,6 @@ export default function App() {
     if (saved) setUser(saved);
   }, []);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-
-    if (loginForm.email && loginForm.password) {
-      setUser(loginForm.email);
-      localStorage.setItem("user", loginForm.email);
-    }
-  };
-
   const fetchCases = () => {
     fetch(`${API}/pa-cases`)
       .then((res) => res.json())
@@ -60,6 +52,14 @@ export default function App() {
   useEffect(() => {
     if (user) fetchCases();
   }, [user]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginForm.email && loginForm.password) {
+      setUser(loginForm.email);
+      localStorage.setItem("user", loginForm.email);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -92,22 +92,28 @@ export default function App() {
         const note = data.call_notes || "";
 
         const authMatch =
-        note.match(/Auth(?:orization)?\s*#?\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
-        note.match(/authorization number\s*[:\-]?\s*([A-Z0-9-]+)/i);
-      
-      const refMatch =
-        note.match(/Reference\s*#\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
-        note.match(/reference number\s*[:\-]?\s*([A-Z0-9-]+)/i);
+          note.match(/Auth(?:orization)?\s*#?\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
+          note.match(/authorization number\s*[:\-]?\s*([A-Z0-9-]+)/i);
 
-        const dateMatch = note.match(/(\d{2}\/\d{2}\/\d{4}).*(\d{2}\/\d{2}\/\d{4})/);
+        const refMatch =
+          note.match(/Reference\s*#\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
+          note.match(/reference number\s*[:\-]?\s*([A-Z0-9-]+)/i);
+
+        const unitsMatch =
+          note.match(/(\d+)\s*(?:units|visits)/i);
+
+        const dateMatch = note.match(
+          /(\d{2}\/\d{2}\/\d{4}).*(\d{2}\/\d{2}\/\d{4})/
+        );
 
         const updatedCase = {
           ...selectedCase,
           call_notes: note,
           auth_number: authMatch ? authMatch[1] : "",
           reference_number: refMatch ? refMatch[1] : "",
-          auth_start_date: dateMatch ? dateMatch[1] : selectedCase.auth_start_date,
-          auth_end_date: dateMatch ? dateMatch[2] : selectedCase.auth_end_date,
+          units: unitsMatch ? unitsMatch[1] : "",
+          auth_start_date: dateMatch ? dateMatch[1] : "",
+          auth_end_date: dateMatch ? dateMatch[2] : "",
           submission_status: note.toLowerCase().includes("denied")
             ? "DENIED"
             : note.toLowerCase().includes("not required")
@@ -125,6 +131,10 @@ export default function App() {
           if (!prev) return note;
           return `${prev}\n\n--------------------\n\n${note}`;
         });
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Unable to run AI call.");
       });
   };
 
@@ -133,14 +143,12 @@ export default function App() {
       <div style={styles.center}>
         <form onSubmit={handleLogin} style={styles.card}>
           <h2>PA Genie Login</h2>
-
           <input
             placeholder="Email"
             onChange={(e) =>
               setLoginForm({ ...loginForm, email: e.target.value })
             }
           />
-
           <input
             type="password"
             placeholder="Password"
@@ -148,7 +156,6 @@ export default function App() {
               setLoginForm({ ...loginForm, password: e.target.value })
             }
           />
-
           <button>Login</button>
         </form>
       </div>
@@ -165,7 +172,6 @@ export default function App() {
       <div style={styles.main}>
         <div style={styles.card}>
           <h3>Create Case</h3>
-
           <form onSubmit={handleSubmit}>
             <input
               placeholder="Patient Name"
@@ -174,7 +180,6 @@ export default function App() {
                 setForm({ ...form, patient_name: e.target.value })
               }
             />
-
             <input
               placeholder="Insurance"
               value={form.payer_name}
@@ -182,7 +187,6 @@ export default function App() {
                 setForm({ ...form, payer_name: e.target.value })
               }
             />
-
             <input
               placeholder="CPT Codes"
               value={form.cpt_codes}
@@ -190,7 +194,6 @@ export default function App() {
                 setForm({ ...form, cpt_codes: e.target.value })
               }
             />
-
             <input
               placeholder="ICD10 Codes"
               value={form.icd10_codes}
@@ -198,14 +201,12 @@ export default function App() {
                 setForm({ ...form, icd10_codes: e.target.value })
               }
             />
-
             <button>Create</button>
           </form>
         </div>
 
         <div style={styles.card}>
           <h3>Cases</h3>
-
           {cases.map((c) => (
             <div
               key={c.id}
@@ -254,6 +255,21 @@ export default function App() {
 
             <div style={styles.infoGrid}>
               <div style={styles.infoBox}>
+                <strong>CPT Codes</strong>
+                <div>{selectedCase.cpt_codes || "—"}</div>
+              </div>
+
+              <div style={styles.infoBox}>
+                <strong>Diagnosis Codes</strong>
+                <div>{selectedCase.icd10_codes || "—"}</div>
+              </div>
+
+              <div style={styles.infoBox}>
+                <strong>Units / Visits</strong>
+                <div>{selectedCase.units || "—"}</div>
+              </div>
+
+              <div style={styles.infoBox}>
                 <strong>Authorization #</strong>
                 <div>{selectedCase.auth_number || "—"}</div>
               </div>
@@ -285,7 +301,9 @@ export default function App() {
                       <div style={styles.timelineDot}></div>
                       <div style={{ flex: 1 }}>
                         <strong>AI Insurance Call</strong>
-                        <div style={styles.log}>{formatCallNote(entry.trim())}</div>
+                        <div style={styles.log}>
+                          {formatCallNote(entry.trim())}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -349,7 +367,7 @@ const styles = {
   },
   infoGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
+    gridTemplateColumns: "repeat(3, minmax(180px, 1fr))",
     gap: 12,
     marginTop: 20,
     marginBottom: 20
@@ -390,5 +408,8 @@ const styles = {
     fontSize: 14
   }
 };
+
+
+
 
 
