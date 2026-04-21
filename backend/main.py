@@ -117,20 +117,31 @@ Chart Note:
 {case.summary_text}
 
 Analyze the chart note and determine:
+
 - Is the CPT appropriate?
-- Is there a better CPT or bundled code?
+- Is there a better CPT or bundled CPT?
 - Is there enough documentation for insurance approval?
 - What documentation is missing?
 - Does this require a nurse or RN review?
 
 Then simulate the insurance call and include:
-- Insurance rep name
-- Statement that the call is recorded
-- Prior auth required or not
-- Auth number / visits / valid dates if approved
-- Reference number
 
-At the end ALWAYS include exactly:
+- Insurance rep name + last initial
+- State that the call is recorded
+- Determine whether prior auth is required
+- If auth is required, provide:
+  - Authorization number
+  - Visits / units approved
+  - Valid date range
+  - Reference number
+- If no auth is required:
+  - Explain why
+  - Provide reference number
+- If documentation is insufficient:
+  - State that nurse review is required
+
+At the end ALWAYS include exactly these lines:
+
 Suggested CPT: <value>
 Missing Documentation: <value>
 Nurse Review Required: Yes or No
