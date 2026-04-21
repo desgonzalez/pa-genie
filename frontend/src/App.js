@@ -92,12 +92,10 @@ export default function App() {
         const note = data.call_notes || "";
 
         const authMatch =
-          note.match(/Auth(?:orization)?\s*#?\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
-          note.match(/authorization number\s*[:\-]?\s*([A-Z0-9-]+)/i);
+        note.match(/(?:Auth(?:orization)?\s*#|Authorization Number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i);
 
         const refMatch =
-          note.match(/Reference\s*#\s*[:\-]?\s*([A-Z0-9-]+)/i) ||
-          note.match(/reference number\s*[:\-]?\s*([A-Z0-9-]+)/i);
+        note.match(/(?:Reference\s*#|Reference Number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i);
 
         const unitsMatch =
           note.match(/(\d+)\s*(?:units|visits)/i);
