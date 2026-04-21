@@ -107,23 +107,33 @@ def ai_call(case_id: int, session: Session = Depends(get_session)):
     timestamp = datetime.now().strftime("%m/%d/%Y %I:%M %p")
 
     prompt = f"""
-You are an expert insurance prior authorization specialist.
+You are an expert prior authorization and utilization review specialist.
 
 Patient: {case.patient_name}
 Insurance: {case.payer_name}
 CPT Codes: {case.cpt_codes}
 ICD10 Codes: {case.icd10_codes}
+Chart Note:
+{case.summary_text}
 
-Simulate a realistic insurance call and include:
-- Insurance rep name + last initial
-- State that the call is being recorded
-- Determine if prior authorization is required
-- Explain why
-- If no auth required: provide a reference number
-- If auth required: auth number, valid dates, units/visits, and reference number
-- If unclear: say nurse review required
+Analyze the chart note and determine:
+- Is the CPT appropriate?
+- Is there a better CPT or bundled code?
+- Is there enough documentation for insurance approval?
+- What documentation is missing?
+- Does this require a nurse or RN review?
 
-Return only a concise insurance call note.
+Then simulate the insurance call and include:
+- Insurance rep name
+- Statement that the call is recorded
+- Prior auth required or not
+- Auth number / visits / valid dates if approved
+- Reference number
+
+At the end ALWAYS include exactly:
+Suggested CPT: <value>
+Missing Documentation: <value>
+Nurse Review Required: Yes or No
 """
 
     try:

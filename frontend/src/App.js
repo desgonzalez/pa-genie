@@ -104,6 +104,12 @@ export default function App() {
           /(\d{2}\/\d{2}\/\d{4}).*(\d{2}\/\d{2}\/\d{4})/
         );
 
+        const suggestedMatch = note.match(/Suggested CPT:\s*(.*)/i);
+        const docsMatch = note.match(/Missing Documentation:\s*(.*)/i);
+        const nurseMatch = note.match(/Nurse Review Required:\s*(Yes|No)/i
+
+        );
+       
         const updatedCase = {
           ...selectedCase,
           call_notes: note,
@@ -112,6 +118,11 @@ export default function App() {
           units: unitsMatch ? unitsMatch[1] : "",
           auth_start_date: dateMatch ? dateMatch[1] : "",
           auth_end_date: dateMatch ? dateMatch[2] : "",
+          suggested_cpt: suggestedMatch ? suggestedMatch[1] : "",
+          missing_docs: docsMatch ? docsMatch[1] : "",
+          nurse_review_required: nurseMatch
+            ? nurseMatch[1].toLowerCase() === "yes"
+            : false,
           submission_status: note.toLowerCase().includes("denied")
             ? "DENIED"
             : note.toLowerCase().includes("not required")
@@ -252,40 +263,57 @@ export default function App() {
             <button onClick={runAISimulation}>🤖 Run AI Call</button>
 
             <div style={styles.infoGrid}>
-              <div style={styles.infoBox}>
-                <strong>CPT Codes</strong>
-                <div>{selectedCase.cpt_codes || "—"}</div>
-              </div>
+  <div style={styles.infoBox}>
+    <strong>CPT Codes</strong>
+    <div>{selectedCase.cpt_codes || "—"}</div>
+  </div>
 
-              <div style={styles.infoBox}>
-                <strong>Diagnosis Codes</strong>
-                <div>{selectedCase.icd10_codes || "—"}</div>
-              </div>
+  <div style={styles.infoBox}>
+    <strong>Diagnosis Codes</strong>
+    <div>{selectedCase.icd10_codes || "—"}</div>
+  </div>
 
-              <div style={styles.infoBox}>
-                <strong>Units / Visits</strong>
-                <div>{selectedCase.units || "—"}</div>
-              </div>
+  <div style={styles.infoBox}>
+    <strong>Units / Visits</strong>
+    <div>{selectedCase.units || "—"}</div>
+  </div>
 
-              <div style={styles.infoBox}>
-                <strong>Authorization #</strong>
-                <div>{selectedCase.auth_number || "—"}</div>
-              </div>
+  <div style={styles.infoBox}>
+    <strong>Authorization #</strong>
+    <div>{selectedCase.auth_number || "—"}</div>
+  </div>
 
-              <div style={styles.infoBox}>
-                <strong>Reference #</strong>
-                <div>{selectedCase.reference_number || "—"}</div>
-              </div>
+  <div style={styles.infoBox}>
+    <strong>Reference #</strong>
+    <div>{selectedCase.reference_number || "—"}</div>
+  </div>
 
-              <div style={styles.infoBox}>
-                <strong>Valid Dates</strong>
-                <div>
-                  {selectedCase.auth_start_date
-                    ? `${selectedCase.auth_start_date} - ${selectedCase.auth_end_date}`
-                    : "—"}
-                </div>
-              </div>
-            </div>
+  <div style={styles.infoBox}>
+    <strong>Valid Dates</strong>
+    <div>
+      {selectedCase.auth_start_date
+        ? `${selectedCase.auth_start_date} - ${selectedCase.auth_end_date}`
+        : "—"}
+    </div>
+  </div>
+
+  <div style={styles.infoBox}>
+    <strong>Suggested CPT</strong>
+    <div>{selectedCase.suggested_cpt || "—"}</div>
+  </div>
+
+  <div style={styles.infoBox}>
+    <strong>Missing Documentation</strong>
+    <div>{selectedCase.missing_docs || "—"}</div>
+  </div>
+
+  <div style={styles.infoBox}>
+    <strong>Nurse Review</strong>
+    <div>
+      {selectedCase.nurse_review_required ? "Required" : "Not Needed"}
+    </div>
+  </div>
+</div>
 
             {callLog && (
               <div style={styles.timelineCard}>
