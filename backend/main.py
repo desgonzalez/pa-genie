@@ -1,11 +1,11 @@
 from typing import List
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
+import PyPDF2
 
 from models import (
-    PACaseCreate,
     PACase,
     PACaseRead,
     PACaseAuthUpdate,
@@ -36,29 +36,40 @@ def on_startup():
     create_db_and_tables()
 
 
-# CREATE CASE
+# =========================
+# CREATE CASE (UPDATED ✅)
+# =========================
 @app.post("/pa-cases", response_model=PACaseRead)
-def create_case(case: PACaseCreate, session: Session = Depends(get_session)):
-    db_case = PACase.from_orm(case)
+async def create_case(
+    patient_name: str = Form(...),
+    payer_name: str = Form(...),
+    cpt_codes: str = Form(...),
+    icd10_codes: str = Form(...),
+    chart_note_text: str = Form(""),
+    file: UploadFile = File(None),
+    session: Session = Depends(get_session),
+):
+    extracted_text = chart_note_text
 
-    try:
-        summary = summarize_for_prior_auth(case.chart_note_text)
+    # 📄 PDF extraction
+    if file:
+        try:
+            reader = PyPDF2.PdfReader(file.file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() or ""
+            extracted_text = text
+        except Exception as e:
+            print("PDF ERROR:", e)
 
-        if isinstance(summary, dict):
-            summary = "\n".join(
-                [
-                    f"{key.replace('_', ' ').title()}: {value}"
-                    for key, value in summary.items()
-                ]
-            )
-
-        db_case.summary_text = str(summary)
-
-    except Exception as e:
-        print("SUMMARY ERROR:", e)
-        db_case.summary_text = "Unable to generate AI summary."
-
-    db_case.status = PAStatus.REVIEW
+    db_case = PACase(
+        patient_name=patient_name,
+        payer_name=payer_name,
+        cpt_codes=cpt_codes,
+        icd10_codes=icd10_codes,
+        summary_text=extracted_text,
+        status=PAStatus.REVIEW
+    )
 
     session.add(db_case)
     session.commit()
@@ -67,14 +78,18 @@ def create_case(case: PACaseCreate, session: Session = Depends(get_session)):
     return db_to_api_case(db_case)
 
 
+# =========================
 # GET CASES
+# =========================
 @app.get("/pa-cases", response_model=List[PACaseRead])
 def get_cases(session: Session = Depends(get_session)):
     cases = session.exec(select(PACase)).all()
     return [db_to_api_case(c) for c in cases]
 
 
+# =========================
 # UPDATE AUTH
+# =========================
 @app.patch("/pa-cases/{case_id}/auth", response_model=PACaseRead)
 def update_auth(
     case_id: int,
@@ -96,7 +111,9 @@ def update_auth(
     return db_to_api_case(case)
 
 
-# AI CALL WITH TIMESTAMP
+# =========================
+# AI CALL
+# =========================
 @app.post("/ai-call/{case_id}", response_model=PACaseRead)
 def ai_call(case_id: int, session: Session = Depends(get_session)):
     case = session.get(PACase, case_id)
