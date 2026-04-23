@@ -34,7 +34,8 @@ export default function App() {
     payer_name: "",
     cpt_codes: "",
     icd10_codes: "",
-    chart_note_text: ""   // ✅ NEW
+    chart_note_text: "",
+    file: null   // ✅ NEW
   });
 
   const [loginForm, setLoginForm] = useState({
@@ -65,17 +66,24 @@ export default function App() {
     }
   };
 
+  // ✅ UPDATED FOR FILE UPLOAD
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    const formData = new FormData();
+    formData.append("patient_name", form.patient_name);
+    formData.append("payer_name", form.payer_name);
+    formData.append("cpt_codes", form.cpt_codes);
+    formData.append("icd10_codes", form.icd10_codes);
+    formData.append("chart_note_text", form.chart_note_text);
+
+    if (form.file) {
+      formData.append("file", form.file);
+    }
+
     fetch(`${API}/pa-cases`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        visit_type: "IN_OFFICE",
-        chart_note_text: form.chart_note_text   // ✅ FIXED
-      })
+      body: formData
     }).then(() => {
       fetchCases();
       setForm({
@@ -83,7 +91,8 @@ export default function App() {
         payer_name: "",
         cpt_codes: "",
         icd10_codes: "",
-        chart_note_text: ""
+        chart_note_text: "",
+        file: null
       });
     });
   };
@@ -188,7 +197,6 @@ export default function App() {
               value={form.icd10_codes}
               onChange={(e) => setForm({ ...form, icd10_codes: e.target.value })} />
 
-            {/* 🔥 NEW */}
             <textarea
               placeholder="Paste provider note here"
               value={form.chart_note_text}
@@ -197,6 +205,16 @@ export default function App() {
               }
               rows={5}
               style={{ width: "100%", marginTop: 10 }}
+            />
+
+            {/* ✅ PDF Upload */}
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) =>
+                setForm({ ...form, file: e.target.files[0] })
+              }
+              style={{ marginTop: 10 }}
             />
 
             <button>Create</button>
