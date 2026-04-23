@@ -33,7 +33,8 @@ export default function App() {
     patient_name: "",
     payer_name: "",
     cpt_codes: "",
-    icd10_codes: ""
+    icd10_codes: "",
+    chart_note_text: ""   // ✅ NEW
   });
 
   const [loginForm, setLoginForm] = useState({
@@ -73,7 +74,7 @@ export default function App() {
       body: JSON.stringify({
         ...form,
         visit_type: "IN_OFFICE",
-        chart_note_text: "Created from UI"
+        chart_note_text: form.chart_note_text   // ✅ FIXED
       })
     }).then(() => {
       fetchCases();
@@ -81,7 +82,8 @@ export default function App() {
         patient_name: "",
         payer_name: "",
         cpt_codes: "",
-        icd10_codes: ""
+        icd10_codes: "",
+        chart_note_text: ""
       });
     });
   };
@@ -173,23 +175,36 @@ export default function App() {
             <input placeholder="Patient Name"
               value={form.patient_name}
               onChange={(e) => setForm({ ...form, patient_name: e.target.value })} />
+
             <input placeholder="Insurance"
               value={form.payer_name}
               onChange={(e) => setForm({ ...form, payer_name: e.target.value })} />
+
             <input placeholder="CPT Codes"
               value={form.cpt_codes}
               onChange={(e) => setForm({ ...form, cpt_codes: e.target.value })} />
+
             <input placeholder="ICD10 Codes"
               value={form.icd10_codes}
               onChange={(e) => setForm({ ...form, icd10_codes: e.target.value })} />
+
+            {/* 🔥 NEW */}
+            <textarea
+              placeholder="Paste provider note here"
+              value={form.chart_note_text}
+              onChange={(e) =>
+                setForm({ ...form, chart_note_text: e.target.value })
+              }
+              rows={5}
+              style={{ width: "100%", marginTop: 10 }}
+            />
+
             <button>Create</button>
           </form>
         </div>
 
-        {/* 🔴 Nurse Review */}
         <div style={styles.card}>
           <h3>🔴 Needs Nurse Review</h3>
-          {nurseCases.length === 0 && <p>No cases</p>}
           {nurseCases.map((c) => (
             <div key={c.id}
               style={{ ...styles.caseItem, borderLeft: "4px solid red" }}
@@ -241,7 +256,9 @@ export default function App() {
                 {callLog.split("--------------------").reverse().map((entry, idx) => (
                   <div key={idx} style={styles.timelineItem}>
                     <div style={styles.timelineDot}></div>
-                    <div>{formatCallNote(entry.trim())}</div>
+                    <div style={styles.log}>
+                      {formatCallNote(entry.trim())}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -264,7 +281,16 @@ const styles = {
   infoBox: { border: "1px solid #ddd", padding: 10 },
   timelineCard: { marginTop: 20 },
   timelineItem: { display: "flex", gap: 10 },
-  timelineDot: { width: 10, height: 10, background: "blue", borderRadius: "50%" }
+  timelineDot: { width: 10, height: 10, background: "blue", borderRadius: "50%" },
+  log: {
+    marginTop: 10,
+    background: "#0f172a",
+    color: "#86efac",
+    padding: 12,
+    borderRadius: 8,
+    whiteSpace: "pre-wrap",
+    fontSize: 14
+  }
 };
 
 
