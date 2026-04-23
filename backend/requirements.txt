@@ -4,3 +4,4 @@ python-dotenv
 openai>=1.0.0
 sqlmodel
 PyPDF2==3.0.1
+python-multipart
