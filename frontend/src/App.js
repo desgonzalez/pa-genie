@@ -26,6 +26,9 @@ export default function App() {
   const [selectedCase, setSelectedCase] = useState(null);
   const [callLog, setCallLog] = useState("");
 
+  const nurseCases = cases.filter(c => c.nurse_review_required);
+  const readyCases = cases.filter(c => !c.nurse_review_required);
+
   const [form, setForm] = useState({
     patient_name: "",
     payer_name: "",
@@ -92,13 +95,13 @@ export default function App() {
         const note = data.call_notes || "";
 
         const authMatch =
-        note.match(/(?:Auth(?:orization)?\s*#|Authorization Number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i);
+          note.match(/(?:Auth(?:orization)?\s*#|Authorization Number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i);
 
         const refMatch =
-        note.match(/(?:Reference\s*#|Reference Number)\s*[:\-]?\s*([A-Z0-9-]{5,})/i);
+          note.match(/reference number(?: for this inquiry)?\s*[:\-]?\s*([A-Z0-9-]{5,})/i) ||
+          note.match(/reference\s*#\s*[:\-]?\s*([A-Z0-9-]{5,})/i);
 
-        const unitsMatch =
-          note.match(/(\d+)\s*(?:units|visits)/i);
+        const unitsMatch = note.match(/(\d+)\s*(?:units|visits)/i);
 
         const dateMatch = note.match(
           /(\d{2}\/\d{2}\/\d{4}).*(\d{2}\/\d{2}\/\d{4})/
@@ -106,10 +109,8 @@ export default function App() {
 
         const suggestedMatch = note.match(/Suggested CPT:\s*(.*)/i);
         const docsMatch = note.match(/Missing Documentation:\s*(.*)/i);
-        const nurseMatch = note.match(/Nurse Review Required:\s*(Yes|No)/i
+        const nurseMatch = note.match(/Nurse Review Required:\s*(Yes|No)/i);
 
-        );
-       
         const updatedCase = {
           ...selectedCase,
           call_notes: note,
@@ -141,10 +142,7 @@ export default function App() {
           return `${prev}\n\n--------------------\n\n${note}`;
         });
       })
-      .catch((err) => {
-        console.error(err);
-        alert("Unable to run AI call.");
-      });
+      .catch(() => alert("AI call failed"));
   };
 
   if (!user) {
@@ -152,19 +150,10 @@ export default function App() {
       <div style={styles.center}>
         <form onSubmit={handleLogin} style={styles.card}>
           <h2>PA Genie Login</h2>
-          <input
-            placeholder="Email"
-            onChange={(e) =>
-              setLoginForm({ ...loginForm, email: e.target.value })
-            }
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            onChange={(e) =>
-              setLoginForm({ ...loginForm, password: e.target.value })
-            }
-          />
+          <input placeholder="Email"
+            onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} />
+          <input type="password" placeholder="Password"
+            onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} />
           <button>Login</button>
         </form>
       </div>
@@ -175,56 +164,52 @@ export default function App() {
     <div style={styles.layout}>
       <div style={styles.sidebar}>
         <h2>PA Genie</h2>
-        <p>Dashboard</p>
       </div>
 
       <div style={styles.main}>
         <div style={styles.card}>
           <h3>Create Case</h3>
           <form onSubmit={handleSubmit}>
-            <input
-              placeholder="Patient Name"
+            <input placeholder="Patient Name"
               value={form.patient_name}
-              onChange={(e) =>
-                setForm({ ...form, patient_name: e.target.value })
-              }
-            />
-            <input
-              placeholder="Insurance"
+              onChange={(e) => setForm({ ...form, patient_name: e.target.value })} />
+            <input placeholder="Insurance"
               value={form.payer_name}
-              onChange={(e) =>
-                setForm({ ...form, payer_name: e.target.value })
-              }
-            />
-            <input
-              placeholder="CPT Codes"
+              onChange={(e) => setForm({ ...form, payer_name: e.target.value })} />
+            <input placeholder="CPT Codes"
               value={form.cpt_codes}
-              onChange={(e) =>
-                setForm({ ...form, cpt_codes: e.target.value })
-              }
-            />
-            <input
-              placeholder="ICD10 Codes"
+              onChange={(e) => setForm({ ...form, cpt_codes: e.target.value })} />
+            <input placeholder="ICD10 Codes"
               value={form.icd10_codes}
-              onChange={(e) =>
-                setForm({ ...form, icd10_codes: e.target.value })
-              }
-            />
+              onChange={(e) => setForm({ ...form, icd10_codes: e.target.value })} />
             <button>Create</button>
           </form>
         </div>
 
+        {/* 🔴 Nurse Review */}
         <div style={styles.card}>
-          <h3>Cases</h3>
-          {cases.map((c) => (
-            <div
-              key={c.id}
+          <h3>🔴 Needs Nurse Review</h3>
+          {nurseCases.length === 0 && <p>No cases</p>}
+          {nurseCases.map((c) => (
+            <div key={c.id}
+              style={{ ...styles.caseItem, borderLeft: "4px solid red" }}
+              onClick={() => {
+                setSelectedCase(c);
+                setCallLog(c.call_notes || "");
+              }}>
+              <strong>{c.patient_name}</strong>
+              <div>{c.payer_name}</div>
+            </div>
+          ))}
+
+          <h3 style={{ marginTop: 20 }}>✅ Ready / Completed</h3>
+          {readyCases.map((c) => (
+            <div key={c.id}
               style={styles.caseItem}
               onClick={() => {
                 setSelectedCase(c);
                 setCallLog(c.call_notes || "");
-              }}
-            >
+              }}>
               <strong>{c.patient_name}</strong>
               <div>{c.payer_name}</div>
             </div>
@@ -233,106 +218,32 @@ export default function App() {
 
         {selectedCase && (
           <div style={styles.card}>
-            <div style={styles.headerRow}>
-              <div>
-                <h2>{selectedCase.patient_name}</h2>
-                <div>{selectedCase.payer_name}</div>
-              </div>
-
-              <div
-                style={{
-                  ...styles.statusBadge,
-                  background:
-                    selectedCase.submission_status === "APPROVED"
-                      ? "#dcfce7"
-                      : selectedCase.submission_status === "DENIED"
-                      ? "#fee2e2"
-                      : "#fef3c7",
-                  color:
-                    selectedCase.submission_status === "APPROVED"
-                      ? "#166534"
-                      : selectedCase.submission_status === "DENIED"
-                      ? "#991b1b"
-                      : "#92400e"
-                }}
-              >
-                {selectedCase.submission_status || "PENDING"}
-              </div>
-            </div>
+            <h2>{selectedCase.patient_name}</h2>
 
             <button onClick={runAISimulation}>🤖 Run AI Call</button>
 
             <div style={styles.infoGrid}>
-  <div style={styles.infoBox}>
-    <strong>CPT Codes</strong>
-    <div>{selectedCase.cpt_codes || "—"}</div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Diagnosis Codes</strong>
-    <div>{selectedCase.icd10_codes || "—"}</div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Units / Visits</strong>
-    <div>{selectedCase.units || "—"}</div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Authorization #</strong>
-    <div>{selectedCase.auth_number || "—"}</div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Reference #</strong>
-    <div>{selectedCase.reference_number || "—"}</div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Valid Dates</strong>
-    <div>
-      {selectedCase.auth_start_date
-        ? `${selectedCase.auth_start_date} - ${selectedCase.auth_end_date}`
-        : "—"}
-    </div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Suggested CPT</strong>
-    <div>{selectedCase.suggested_cpt || "—"}</div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Missing Documentation</strong>
-    <div>{selectedCase.missing_docs || "—"}</div>
-  </div>
-
-  <div style={styles.infoBox}>
-    <strong>Nurse Review</strong>
-    <div>
-      {selectedCase.nurse_review_required ? "Required" : "Not Needed"}
-    </div>
-  </div>
-</div>
+              <div style={styles.infoBox}><strong>CPT</strong><div>{selectedCase.cpt_codes}</div></div>
+              <div style={styles.infoBox}><strong>DX</strong><div>{selectedCase.icd10_codes}</div></div>
+              <div style={styles.infoBox}><strong>Units</strong><div>{selectedCase.units || "—"}</div></div>
+              <div style={styles.infoBox}><strong>Auth #</strong><div>{selectedCase.auth_number || "—"}</div></div>
+              <div style={styles.infoBox}><strong>Ref #</strong><div>{selectedCase.reference_number || "—"}</div></div>
+              <div style={styles.infoBox}><strong>Suggested CPT</strong><div>{selectedCase.suggested_cpt || "—"}</div></div>
+              <div style={styles.infoBox}><strong>Missing Docs</strong><div>{selectedCase.missing_docs || "—"}</div></div>
+              <div style={styles.infoBox}><strong>Nurse Review</strong>
+                <div>{selectedCase.nurse_review_required ? "Required" : "Not Needed"}</div>
+              </div>
+            </div>
 
             {callLog && (
               <div style={styles.timelineCard}>
                 <h3>Case Timeline</h3>
-
-                {callLog
-                  .split("--------------------")
-                  .reverse()
-                  .map((entry, idx) => (
-                    <div key={idx} style={styles.timelineItem}>
-                      <div style={styles.timelineDot}></div>
-                      <div style={{ flex: 1 }}>
-                        <strong>AI Insurance Call</strong>
-                        <div style={styles.log}>
-                          {formatCallNote(entry.trim())}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                {callLog.split("--------------------").reverse().map((entry, idx) => (
+                  <div key={idx} style={styles.timelineItem}>
+                    <div style={styles.timelineDot}></div>
+                    <div>{formatCallNote(entry.trim())}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -343,96 +254,17 @@ export default function App() {
 }
 
 const styles = {
-  layout: {
-    display: "flex",
-    minHeight: "100vh",
-    background: "#f8fafc"
-  },
-  sidebar: {
-    width: 220,
-    background: "#0f172a",
-    color: "white",
-    padding: 20
-  },
-  main: {
-    flex: 1,
-    padding: 24
-  },
-  card: {
-    background: "white",
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 20,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-  },
-  caseItem: {
-    padding: 12,
-    border: "1px solid #e2e8f0",
-    borderRadius: 8,
-    marginBottom: 10,
-    cursor: "pointer"
-  },
-  center: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100vh",
-    background: "#f1f5f9"
-  },
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20
-  },
-  statusBadge: {
-    padding: "8px 14px",
-    borderRadius: 999,
-    fontWeight: 700,
-    fontSize: 12
-  },
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(180px, 1fr))",
-    gap: 12,
-    marginTop: 20,
-    marginBottom: 20
-  },
-  infoBox: {
-    border: "1px solid #e2e8f0",
-    borderRadius: 10,
-    padding: 12,
-    background: "#f8fafc"
-  },
-  timelineCard: {
-    marginTop: 20,
-    background: "white",
-    borderRadius: 12,
-    padding: 20,
-    border: "1px solid #e2e8f0"
-  },
-  timelineItem: {
-    display: "flex",
-    gap: 12,
-    marginBottom: 20,
-    alignItems: "flex-start"
-  },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    background: "#2563eb",
-    borderRadius: "50%",
-    marginTop: 6
-  },
-  log: {
-    marginTop: 10,
-    background: "#0f172a",
-    color: "#86efac",
-    padding: 12,
-    borderRadius: 8,
-    whiteSpace: "pre-wrap",
-    fontSize: 14
-  }
+  layout: { display: "flex", minHeight: "100vh" },
+  sidebar: { width: 200, background: "#0f172a", color: "white", padding: 20 },
+  main: { flex: 1, padding: 20 },
+  card: { background: "white", padding: 20, marginBottom: 20, borderRadius: 10 },
+  caseItem: { padding: 10, border: "1px solid #ddd", marginBottom: 8, cursor: "pointer" },
+  center: { display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" },
+  infoGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 },
+  infoBox: { border: "1px solid #ddd", padding: 10 },
+  timelineCard: { marginTop: 20 },
+  timelineItem: { display: "flex", gap: 10 },
+  timelineDot: { width: 10, height: 10, background: "blue", borderRadius: "50%" }
 };
 
 
