@@ -1,5 +1,28 @@
 import React, { useState, useEffect } from "react";
 
+const getStatus = (c) => {
+  if (c.nurse_review_required) return { label: "NEEDS REVIEW", color: "#ef4444" };
+  if (c.submission_status === "NO AUTH NEEDED") return { label: "NO AUTH", color: "#22c55e" };
+  if (c.submission_status === "DENIED") return { label: "DENIED", color: "#f97316" };
+  return { label: "APPROVED", color: "#3b82f6" };
+};
+
+const buildSummaryText = (c) => {
+  return `
+Patient: ${c.patient_name}
+Insurance: ${c.payer_name}
+
+CPT: ${c.suggested_cpt || c.cpt_codes}
+DX: ${c.primary_diagnosis || c.icd10_codes}
+
+Decision: ${getStatus(c).label}
+Auth #: ${c.auth_number || "—"}
+Ref #: ${c.reference_number || "—"}
+
+Missing Docs: ${c.missing_docs || "None"}
+  `.trim();
+};
+
 const API = "https://pa-genie-backend.onrender.com";
 
 const formatCallNote = (note) => {
@@ -35,7 +58,7 @@ export default function App() {
     cpt_codes: "",
     icd10_codes: "",
     chart_note_text: "",
-    file: null   // ✅ NEW
+    file: null
   });
 
   const [loginForm, setLoginForm] = useState({
@@ -66,7 +89,6 @@ export default function App() {
     }
   };
 
-  // ✅ UPDATED FOR FILE UPLOAD
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -122,6 +144,11 @@ export default function App() {
         const docsMatch = note.match(/Missing Documentation:\s*(.*)/i);
         const nurseMatch = note.match(/Nurse Review Required:\s*(Yes|No)/i);
 
+        const diagnosisMatch = note.match(/Primary Diagnosis:\s*(.*)/i);
+        const symptomsMatch = note.match(/Symptoms:\s*(.*)/i);
+        const treatmentMatch = note.match(/Prior Treatment:\s*(.*)/i);
+        const necessityMatch = note.match(/Medical Necessity:\s*(.*)/i);
+
         const updatedCase = {
           ...selectedCase,
           call_notes: note,
@@ -139,7 +166,13 @@ export default function App() {
             ? "DENIED"
             : note.toLowerCase().includes("not required")
             ? "NO AUTH NEEDED"
-            : "APPROVED"
+            : "APPROVED",
+
+          // ✅ Structured extraction
+          primary_diagnosis: diagnosisMatch ? diagnosisMatch[1] : "",
+          symptoms: symptomsMatch ? symptomsMatch[1] : "",
+          prior_treatment: treatmentMatch ? treatmentMatch[1] : "",
+          medical_necessity: necessityMatch ? necessityMatch[1] : ""
         };
 
         setSelectedCase(updatedCase);
@@ -207,7 +240,6 @@ export default function App() {
               style={{ width: "100%", marginTop: 10 }}
             />
 
-            {/* ✅ PDF Upload */}
             <input
               type="file"
               accept="application/pdf"
@@ -216,6 +248,12 @@ export default function App() {
               }
               style={{ marginTop: 10 }}
             />
+            
+             {form.file && (
+              <div style={{ marginTop: 6, fontSize: 12 }}>
+                📄 Uploaded: {form.file.name}
+              </div>
+            )}
 
             <button>Create</button>
           </form>
@@ -250,39 +288,137 @@ export default function App() {
         </div>
 
         {selectedCase && (
-          <div style={styles.card}>
-            <h2>{selectedCase.patient_name}</h2>
+  <div style={styles.card}>
+    <h2>{selectedCase.patient_name}</h2>
 
-            <button onClick={runAISimulation}>🤖 Run AI Call</button>
+    {/* STATUS BADGE */}
+    <div style={{
+      display: "inline-block",
+      padding: "6px 10px",
+      borderRadius: 6,
+      background: getStatus(selectedCase).color,
+      color: "white",
+      marginBottom: 15,
+      fontSize: 12,
+      fontWeight: 600
+    }}>
+      {getStatus(selectedCase).label}
+    </div>
 
-            <div style={styles.infoGrid}>
-              <div style={styles.infoBox}><strong>CPT</strong><div>{selectedCase.cpt_codes}</div></div>
-              <div style={styles.infoBox}><strong>DX</strong><div>{selectedCase.icd10_codes}</div></div>
-              <div style={styles.infoBox}><strong>Units</strong><div>{selectedCase.units || "—"}</div></div>
-              <div style={styles.infoBox}><strong>Auth #</strong><div>{selectedCase.auth_number || "—"}</div></div>
-              <div style={styles.infoBox}><strong>Ref #</strong><div>{selectedCase.reference_number || "—"}</div></div>
-              <div style={styles.infoBox}><strong>Suggested CPT</strong><div>{selectedCase.suggested_cpt || "—"}</div></div>
-              <div style={styles.infoBox}><strong>Missing Docs</strong><div>{selectedCase.missing_docs || "—"}</div></div>
-              <div style={styles.infoBox}><strong>Nurse Review</strong>
-                <div>{selectedCase.nurse_review_required ? "Required" : "Not Needed"}</div>
-              </div>
+    {/* DECISION SUMMARY */}
+    <div style={{
+      border: "1px solid #ddd",
+      padding: 15,
+      borderRadius: 10,
+      marginBottom: 20,
+      background: "#f8fafc"
+    }}>
+      <h3>Decision Summary</h3>
+      <div>
+        <div><b>CPT:</b> {selectedCase.suggested_cpt || selectedCase.cpt_codes}</div>
+        <div><b>Diagnosis:</b> {selectedCase.primary_diagnosis || selectedCase.icd10_codes}</div>
+        <div><b>Authorization:</b> {selectedCase.auth_number || "Not Required"}</div>
+        <div><b>Missing:</b> {selectedCase.missing_docs || "None"}</div>
+      </div>
+    </div>
+
+    {/* ACTION BUTTONS */}
+    <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+      <button onClick={runAISimulation}>🤖 Run AI</button>
+
+      <button onClick={() => {
+        navigator.clipboard.writeText(buildSummaryText(selectedCase));
+        alert("Copied summary");
+      }}>
+        📋 Copy
+      </button>
+
+      <button onClick={() => {
+        const updated = { ...selectedCase, nurse_review_required: false };
+        setSelectedCase(updated);
+        setCases(prev => prev.map(c => c.id === updated.id ? updated : c));
+      }}>
+        ✅ Approve
+      </button>
+
+      <button onClick={() => {
+        const updated = { ...selectedCase, nurse_review_required: true };
+        setSelectedCase(updated);
+        setCases(prev => prev.map(c => c.id === updated.id ? updated : c));
+      }}>
+        ❌ Needs Info
+      </button>
+    </div>
+
+    {/* INFO GRID */}
+    <div style={styles.infoGrid}>
+      <div style={styles.infoBox}>
+        <strong>CPT</strong>
+        <input
+          value={selectedCase.cpt_codes || ""}
+          onChange={(e) =>
+            setSelectedCase({ ...selectedCase, cpt_codes: e.target.value })
+          }
+        />
+      </div>
+
+      <div style={styles.infoBox}>
+        <strong>DX</strong>
+        <input
+          value={selectedCase.icd10_codes || ""}
+          onChange={(e) =>
+            setSelectedCase({ ...selectedCase, icd10_codes: e.target.value })
+          }
+        />
+      </div>
+
+      <div style={styles.infoBox}>
+        <strong>Suggested CPT</strong>
+        <div>{selectedCase.suggested_cpt || "—"}</div>
+      </div>
+
+      <div style={styles.infoBox}>
+        <strong>Missing Docs</strong>
+        <div>{selectedCase.missing_docs || "—"}</div>
+      </div>
+
+      <div style={styles.infoBox}>
+        <strong>Diagnosis</strong>
+        <div>{selectedCase.primary_diagnosis || "—"}</div>
+      </div>
+
+      <div style={styles.infoBox}>
+        <strong>Symptoms</strong>
+        <div>{selectedCase.symptoms || "—"}</div>
+      </div>
+
+      <div style={styles.infoBox}>
+        <strong>Prior Treatment</strong>
+        <div>{selectedCase.prior_treatment || "—"}</div>
+      </div>
+
+      <div style={styles.infoBox}>
+        <strong>Medical Necessity</strong>
+        <div>{selectedCase.medical_necessity || "—"}</div>
+      </div>
+    </div>
+
+    {/* TIMELINE */}
+    {callLog && (
+      <div style={styles.timelineCard}>
+        <h3>Case Timeline</h3>
+        {callLog.split("--------------------").reverse().map((entry, idx) => (
+          <div key={idx} style={styles.timelineItem}>
+            <div style={styles.timelineDot}></div>
+            <div style={styles.log}>
+              {formatCallNote(entry.trim())}
             </div>
-
-            {callLog && (
-              <div style={styles.timelineCard}>
-                <h3>Case Timeline</h3>
-                {callLog.split("--------------------").reverse().map((entry, idx) => (
-                  <div key={idx} style={styles.timelineItem}>
-                    <div style={styles.timelineDot}></div>
-                    <div style={styles.log}>
-                      {formatCallNote(entry.trim())}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
-        )}
+        ))}
+      </div>
+    )}
+  </div>
+)}
       </div>
     </div>
   );
@@ -310,7 +446,6 @@ const styles = {
     fontSize: 14
   }
 };
-
 
 
 
